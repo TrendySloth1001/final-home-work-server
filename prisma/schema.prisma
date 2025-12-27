@@ -1,0 +1,497 @@
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  extensions = [vector]
+}
+
+model Syllabus {
+  id           String    @id @default(cuid())
+  teacherId    String     // comes from POST request
+
+  // School fields
+  subjectName  String
+  className    String       // Example: "Class 6", "Class 10"
+  board        String       // CBSE / ICSE / STATE / IB
+  term         String       // Term 1 / Term 2 / Annual
+  academicYear String
+  isCompleted Boolean   @default(false)
+  overview     String?
+  objectives   String?
+  prerequisites String?
+  assessmentMethods String?
+  isArchived  Boolean   @default(false)
+  archivedAt DateTime?
+  resources    String?
+  otherFields  Json?    // Dynamic custom fields as JSON object
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  completionStage   Int  @default(0) // percentage of completion based on units/topics added
+  stage         String   @default("draft") // draft / published / archived
+  
+  // AI generation tracking
+  published    Boolean  @default(false) // draft vs live
+  generatedBy  String?  @default("manual") // 'ai' or 'manual'
+  aiPrompt     String?  @db.Text // Original prompt used for generation
+  
+  // Version tracking for multiple AI generations
+  version      Int      @default(1) // Version number for same syllabus parameters
+  isLatest     Boolean  @default(true) // Mark the latest version
+  parentId     String?  // Reference to original syllabus if this is a regeneration
+  generationJobId String? // Link to AIGeneration/JobQueue for tracking
+  
+  // Relations
+  units        Unit[]
+
+  @@index([teacherId])
+  @@index([subjectName, className, board])
+  @@index([teacherId, subjectName, className, board, term, academicYear])
+  @@index([isLatest])
+  @@index([version])
+}
+
+model Unit {
+  id            String   @id @default(cuid())
+  syllabusId    String
+  teacherId     String   // Teacher who created/owns this unit
+
+  title         String
+  description   String?
+  teachingHours Int?
+  durationDays  Int?
+  order         Int?     // Display order within syllabus
+
+  completionStage Int      @default(0) // percentage of completion based on topics added
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // AI generation tracking
+  generatedBy   String?  @default("manual") // 'ai' or 'manual'
+
+  // Relations
+  syllabus      Syllabus @relation(fields: [syllabusId], references: [id], onDelete: Cascade)
+  topics        Topic[]
+
+  // Indexes
+  @@index([syllabusId])
+  @@index([teacherId])
+}
+
+model Topic {
+  id          String   @id @default(cuid())
+  unitId      String
+  teacherId   String   // Teacher who created/owns this topic
+
+  topicName   String
+  description String?
+  keywords    String?  // Comma-separated keywords for search
+  order       Int?     // Display order within unit
+
+  // Vector embedding for semantic search (384 dimensions for all-MiniLM-L6-v2)
+  // Stored as JSON string for Prisma compatibility
+  embedding   String?  @db.Text
+  
+  // AI generation tracking
+  generatedBy String?  @default("manual") // 'ai' or 'manual'
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  unit        Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  questions   Question[]
+  resources   TopicResource[] // External resources from web search
+
+  // Indexes
+  @@index([unitId])
+  @@index([teacherId])
+}
+
+model Question {
+  id            String   @id @default(cuid())
+  topicId       String
+  teacherId     String
+  batchId       String?  // Link to batch if generated in batch
+  
+  // Question content
+  questionText  String
+  questionType  String   // 'mcq', 'short-answer', 'essay', 'true-false'
+  difficulty    String   // 'easy', 'medium', 'hard'
+  points        Int      @default(1)
+
+  // For MCQ questions
+  options       String?  // JSON string: ["option1", "option2", "option3", "option4"]
+  correctAnswer String?  // For MCQ: index or letter, for others: the answer
+
+  // AI metadata
+  explanation   String?  // Explanation of the answer
+  generatedBy   String   // 'ai' or 'manual'
+  aiModel       String?  // 'llama2', 'mistral', etc (if AI generated)
+  aiPrompt      String?  // Original prompt used (for debugging/improvement)
+
+  // Vector embedding for semantic similarity (384 dimensions for all-MiniLM-L6-v2)
+  // Stored as JSON string for Prisma compatibility
+  embedding     String?  @db.Text
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  topic         Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  batch         QuestionBatch? @relation("QuestionBatchQuestions", fields: [batchId], references: [id], onDelete: SetNull)
+  studentAnswers  StudentAnswer[]
+
+  // Indexes for better query performance
+  @@index([topicId])
+  @@index([teacherId])
+  @@index([batchId])
+  @@index([difficulty])
+  @@index([questionType])
+  @@index([generatedBy])
+}
+
+model AIGeneration {
+  id          String   @id @default(cuid())
+  
+  // Type of generation
+  type        String   // 'question', 'questions-batch', 'summary', 'enhancement', 'objectives'
+  
+  // Request/Response data
+  input       String   // JSON string of input parameters
+  output      String   // JSON string of AI response
+  prompt      String?  // Actual prompt sent to AI
+  
+  // AI metadata
+  model       String   // 'llama2', 'mistral', 'gpt-4', etc
+  provider    String   // 'ollama', 'openai'
+  tokens      Int?     // Token count if available
+  duration    Float?   // Duration in seconds
+  cost        Float?   // Cost in USD (if using paid API)
+  
+  // Status tracking
+  status      String   @default("success") // 'success', 'failed', 'timeout'
+  error       String?  // Error message if failed
+
+  //job tracking
+  jobId       String?  // Background job ID for async processing
+  jobStatus   String?  // 'pending', 'in-progress', 'completed', 'failed'
+  jobNotified Boolean  @default(false) // Whether notification sent upon completion
+  jobError   String?  // Error message if job failed
+  
+  // Context
+  syllabusId  String?
+  unitId      String?
+  topicId     String?
+  teacherId   String?
+  
+  createdAt   DateTime @default(now())
+  
+  // Indexes
+  @@index([type])
+  @@index([teacherId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([topicId])
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  teacherId   String
+  title       String
+  message     String
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([teacherId])
+  @@index([isRead])
+}
+
+model masterSyllabusTemplate {
+  id           String    @id @default(cuid())
+  subjectName  String
+  className    String       // Example: "Class 6", "Class 10"
+  board        String       // CBSE / ICSE / STATE / IB
+  term         String       // Term 1 / Term 2 / Annual
+  academicYear String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt  
+}
+
+
+model Vector {
+  id        String   @id @default(cuid())
+  embedding String   @db.Text // JSON string of the vector
+  metadata  String?  @db.Text // Additional metadata as JSON string
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+
+model JobQueue {
+  id          String   @id @default(cuid())
+  jobId       String   @unique // BullMQ job ID for tracking
+  jobType     String   // 'syllabus-generation', 'questions-batch', 'content-enhancement'
+  teacherId   String   // Teacher who initiated the job
+  payload     String   @db.Text // JSON string of job payload
+  status      String   @default("waiting") // 'waiting', 'active', 'completed', 'failed'
+  progress    Int      @default(0) // 0-100 percentage
+  result      String?  @db.Text // JSON string of job result
+  error       String?  @db.Text // Error message if failed
+  attempts    Int      @default(0) // Number of attempts made
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([jobId])
+  @@index([teacherId])
+  @@index([jobType])
+  @@index([status])
+}
+
+model WebSearchCache {
+  id          String   @id @default(cuid())
+  query       String   // Search query
+  queryHash   String   @unique // MD5 hash for deduplication
+  results     String   @db.Text // JSON array of search results
+  source      String   @default("duckduckgo") // 'duckduckgo', 'tavily', etc
+  resultCount Int      @default(0) // Number of results found
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime // Cache expiry (default 7 days)
+  
+  @@index([queryHash])
+  @@index([expiresAt])
+  @@index([createdAt])
+}
+
+model TopicResource {
+  id          String   @id @default(cuid())
+  topicId     String
+  title       String
+  url         String
+  snippet     String?  @db.Text
+  source      String   @default("web-search") // 'web-search', 'manual', 'ai-generated'
+  relevance   Float?   // 0-1 similarity score
+  createdAt   DateTime @default(now())
+  
+  topic       Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  
+  @@index([topicId])
+  @@index([relevance])
+  @@index([source])
+}
+
+
+// Assessment - Student Answer Submissions
+model StudentAnswer {
+  id                  String   @id @default(cuid())
+  questionId          String
+  studentId           String   // Who submitted
+  teacherId           String   // For filtering by teacher
+  
+  // Answer data
+  studentAnswer       String   @db.Text
+  selectedOption      String?  // For MCQ: "A", "B", "C", "D"
+  
+  // Grading results
+  score               Float    @default(0.0)
+  maxScore            Float
+  isCorrect           Boolean  @default(false)
+  correctnessLevel    String?  // excellent, good, partial, incorrect
+  
+  // Grading metadata
+  gradingMethod       String   // exact-match, semantic-multi-metric, essay-statistical
+  confidence          Float?
+  feedback            String?  @db.Text
+  
+  submittedAt         DateTime @default(now())
+  
+  // Relations
+  question            Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  
+  @@index([questionId])
+  @@index([studentId])
+  @@index([teacherId])
+  @@index([gradingMethod])
+}
+
+model Conversation {
+  id          String   @id @default(cuid())
+  userId      String?  // Optional: link to user/teacher
+  teacherId   String?  // If tied to teacher
+  studentId   String?  // If tied to student
+  
+  // Metadata
+  title       String?  // Auto-generated from first message
+  topic       String?  // Subject matter (e.g., "Math tutoring")
+  sessionType String   @default("chat") // chat | tutoring | question-gen | syllabus
+  
+  // Tool configuration
+  enabledTools Json?    // Array of enabled tool names ['syllabus-generator', 'question-generator', 'websearch']
+  toolPreferences Json? // Tool-specific preferences
+  activeEntityIds Json? // Currently active entities { syllabusId, unitId, topicId }
+  
+  // Context tracking
+  contextIds  Json?    // Array of document IDs for RAG context
+  metadata    Json?    // Additional metadata (tags, settings)
+  
+  // Timestamps
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  lastActiveAt DateTime @default(now())
+  
+  // Relations
+  messages    ConversationMessage[]
+  toolExecutions ToolExecution[]
+  
+  @@index([userId])
+  @@index([teacherId])
+  @@index([studentId])
+  @@index([lastActiveAt])
+}
+
+model ConversationMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  
+  // Message content
+  role           String   // 'system' | 'user' | 'assistant'
+  content        String   @db.Text
+  
+  // Message type classification
+  messageType    String   @default("chat") // 'chat' | 'tool_invocation' | 'tool_result'
+  toolExecutionId String? // Link to tool execution if applicable
+  
+  // RAG context used for this message
+  retrievedDocs  Json?    // Array of doc IDs/snippets used for context
+  embedding      String?  @db.Text // Vector embedding (384d)
+  
+  // Metadata
+  tokensUsed     Int?     // Track token consumption
+  model          String?  // Model used (qwen2.5:14b)
+  temperature    Float?   // Generation parameters
+  
+  // Order tracking
+  sequenceNumber Int      // Message order in conversation
+  
+  createdAt      DateTime @default(now())
+  
+  // Relations
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  toolExecution  ToolExecution? @relation(fields: [toolExecutionId], references: [id], onDelete: SetNull)
+  
+  @@index([conversationId, sequenceNumber])
+  @@index([conversationId])
+  @@index([toolExecutionId])
+}
+
+model ToolExecution {
+  id              String   @id @default(cuid())
+  conversationId  String
+  messageId       String?  // Initial message that triggered this execution
+  
+  // Tool identification
+  toolName        String   // 'syllabus-generator' | 'question-generator' | 'websearch'
+  action          String   // 'create' | 'update' | 'delete' | 'publish'
+  
+  // Intent and context
+  intent          Json?    // Parsed intent { operation, targetEntity, parameters }
+  executionContext Json?   // Snapshot of conversation state
+  inputParameters Json?    // Tool-specific input parameters
+  
+  // Execution tracking
+  status          String   @default("pending") // 'pending' | 'running' | 'completed' | 'failed'
+  progress        Int      @default(0) // 0-100 percentage
+  currentStep     String?  // Human-readable current step
+  
+  // Job tracking for async execution
+  jobId           String?  @unique
+  jobQueueName    String?  // 'aiQueue'
+  
+  // Results
+  outputResult    Json?    // Tool execution result
+  outputSummary   String?  @db.Text // Human-readable summary
+  error           String?  @db.Text
+  
+  // Entity linkage
+  entityType      String?  // 'syllabus' | 'questions' | 'unit' | 'topic'
+  entityId        String?  // ID of created/modified entity
+  versionCreated  Int?     // Version number if applicable
+  changesSummary  Json?    // { added: [], modified: [], deleted: [] }
+  
+  // Performance metrics
+  startedAt       DateTime?
+  completedAt     DateTime?
+  duration        Float?   // Duration in seconds
+  tokensUsed      Int?
+  cost            Float?   // Estimated cost in USD
+  
+  // Attribution
+  teacherId       String?
+  userId          String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  messages        ConversationMessage[]
+  
+  @@index([conversationId])
+  @@index([toolName])
+  @@index([status])
+  @@index([jobId])
+  @@index([entityType, entityId])
+  @@index([teacherId])
+}
+
+model SyllabusVersion {
+  id                String   @id @default(cuid())
+  syllabusId        String   // Reference to the syllabus this version belongs to
+  version           Int      // Version number
+  
+  // Version metadata
+  createdBy         String   @default("ai_tool") // 'ai_tool' | 'manual'
+  toolExecutionId   String?  // Link to tool execution
+  changeDescription String?  @db.Text // Human-readable description of changes
+  changesSummary    Json?    // Detailed changes { added: [], modified: [], deleted: [] }
+  
+  // Version state snapshot
+  snapshot          Json     // Full syllabus state at this version
+  
+  // Publication tracking
+  isPublished       Boolean  @default(false)
+  publishedAt       DateTime?
+  publishedBy       String?  // teacherId who published
+  
+  createdAt         DateTime @default(now())
+  
+  @@unique([syllabusId, version])
+  @@index([syllabusId])
+  @@index([version])
+  @@index([isPublished])
+}
+
+model QuestionBatch {
+  id              String   @id @default(cuid())
+  toolExecutionId String?  @unique // Link to tool execution
+  topicId         String
+  teacherId       String
+  count           Int      // Number of questions in batch
+  
+  // Batch metadata
+  difficulty      String?  // Overall difficulty
+  questionType    String?  // MCQ, Short Answer, etc.
+  parameters      Json?    // Generation parameters
+  
+  createdAt       DateTime @default(now())
+  
+  // Relations
+  questions       Question[] @relation("QuestionBatchQuestions")
+  
+  @@index([topicId])
+  @@index([teacherId])
+  @@index([toolExecutionId])
+}
