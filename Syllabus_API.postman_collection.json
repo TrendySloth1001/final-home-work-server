@@ -1,0 +1,696 @@
+{
+	"info": {
+		"_postman_id": "syllabus-api-collection",
+		"name": "Syllabus API",
+		"description": "API collection for Syllabus Management System",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "AI Syllabus Generation",
+			"item": [
+				{
+					"name": "Generate Syllabus (AI)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"teacherId\": \"teacher-123\",\n  \"subjectName\": \"Physics\",\n  \"className\": \"Class 10\",\n  \"board\": \"CBSE\",\n  \"term\": \"Term 1\",\n  \"academicYear\": \"2025\",\n  \"description\": \"Focus on mechanics, electricity, and modern physics with practical applications\"\n}"
+						},
+						"url": {
+							"raw": "http://localhost:3001/api/syllabus/generate",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3001",
+							"path": [
+								"api",
+								"syllabus",
+								"generate"
+							]
+						},
+						"description": "Generate complete syllabus with units and topics using AI. Returns a jobId for status polling."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Generation Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3001/api/syllabus/generate/:jobId/status",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3001",
+							"path": [
+								"api",
+								"syllabus",
+								"generate",
+								":jobId",
+								"status"
+							],
+							"variable": [
+								{
+									"key": "jobId",
+									"value": "1",
+									"description": "Job ID returned from generate endpoint"
+								}
+							]
+						},
+						"description": "Poll job status. Returns state (waiting/active/completed/failed) and syllabusId when complete."
+					},
+					"response": []
+				},
+				{
+					"name": "Publish Syllabus",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"teacherId\": \"teacher-123\"\n}"
+						},
+						"url": {
+							"raw": "http://localhost:3001/api/syllabus/:syllabusId/publish",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3001",
+							"path": [
+								"api",
+								"syllabus",
+								":syllabusId",
+								"publish"
+							],
+							"variable": [
+								{
+									"key": "syllabusId",
+									"value": "",
+									"description": "Syllabus ID from generation result"
+								}
+							]
+						},
+						"description": "Publish a draft syllabus (sets published: true, stage: 'published')"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Version Management",
+			"item": [
+				{
+					"name": "List All Versions",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3001/api/syllabus/versions?teacherId=teacher-123&subjectName=Physics&className=Class 10&board=CBSE&term=Term 1&academicYear=2025",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3001",
+							"path": [
+								"api",
+								"syllabus",
+								"versions"
+							],
+							"query": [
+								{
+									"key": "teacherId",
+									"value": "teacher-123"
+								},
+								{
+									"key": "subjectName",
+									"value": "Physics"
+								},
+								{
+									"key": "className",
+									"value": "Class 10"
+								},
+								{
+									"key": "board",
+									"value": "CBSE"
+								},
+								{
+									"key": "term",
+									"value": "Term 1"
+								},
+								{
+									"key": "academicYear",
+									"value": "2025"
+								}
+							]
+						},
+						"description": "Get all versions for a syllabus. Returns array with version metadata (version number, isLatest, createdAt)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Specific Version",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3001/api/syllabus/version/:syllabusId",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3001",
+							"path": [
+								"api",
+								"syllabus",
+								"version",
+								":syllabusId"
+							],
+							"variable": [
+								{
+									"key": "syllabusId",
+									"value": "syllabus-id-here"
+								}
+							]
+						},
+						"description": "Get full details of a specific syllabus version including units and topics (no embeddings)."
+					},
+					"response": []
+				},
+				{
+					"name": "Compare Two Versions",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3001/api/syllabus/compare?version1Id=first-version-id&version2Id=second-version-id",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3001",
+							"path": [
+								"api",
+								"syllabus",
+								"compare"
+							],
+							"query": [
+								{
+									"key": "version1Id",
+									"value": "first-version-id"
+								},
+								{
+									"key": "version2Id",
+									"value": "second-version-id"
+								}
+							]
+						},
+						"description": "Compare two syllabus versions side-by-side. Shows differences in units, topics, and all fields."
+					},
+					"response": []
+				},
+				{
+					"name": "Mark Version as Latest",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "http://localhost:3001/api/syllabus/:syllabusId/set-latest",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3001",
+							"path": [
+								"api",
+								"syllabus",
+								":syllabusId",
+								"set-latest"
+							],
+							"variable": [
+								{
+									"key": "syllabusId",
+									"value": "syllabus-id-here"
+								}
+							]
+						},
+						"description": "Mark a specific version as the latest/active version. Automatically sets all other versions as not latest."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Syllabus",
+			"item": [
+				{
+					"name": "Create Syllabus",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"teacherId\": \"teacher123\",\n  \"subjectName\": \"Mathematics\",\n  \"className\": \"Class 10\",\n  \"board\": \"CBSE\",\n  \"term\": \"Term 1\",\n  \"academicYear\": \"2024-2025\",\n  \"overview\": \"This syllabus covers advanced mathematics topics for Class 10 students.\",\n  \"objectives\": \"Students will learn algebra, geometry, and trigonometry concepts.\"\n}"
+						},
+						"url": {
+							"raw": "http://localhost:3001/api/syllabus",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3001",
+							"path": [
+								"api",
+								"syllabus"
+							]
+						},
+						"description": "Create a new syllabus manually"
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Syllabuses by Teacher ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3001/api/syllabus/teacher/:teacherId?published=true",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3001",
+							"query": [
+								{
+									"key": "published",
+									"value": "true",
+									"description": "Filter: true (only published), false (only drafts), omit (all)"
+								}
+							],
+							"path": [
+								"api",
+								"syllabus",
+								"teacher",
+								":teacherId"
+							],
+							"variable": [
+								{
+									"key": "teacherId",
+									"value": "teacher123"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Single Syllabus by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3001/api/syllabus/:syllabusId",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3001",
+							"path": [
+								"api",
+								"syllabus",
+								":syllabusId"
+							],
+							"variable": [
+								{
+									"key": "syllabusId",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Unit",
+			"item": [
+				{
+					"name": "Create Unit",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"syllabusId\": \"\",\n  \"title\": \"Algebra\",\n  \"description\": \"Introduction to algebraic expressions and equations\",\n  \"teachingHours\": 15\n}"
+						},
+						"url": {
+							"raw": "http://localhost:3001/api/syllabus/unit",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3001",
+							"path": [
+								"api",
+								"unit"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Units by Syllabus ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3001/api/unit/syllabus/:syllabusId",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3001",
+							"path": [
+								"api",
+								"unit",
+								"syllabus",
+								":syllabusId"
+							],
+							"variable": [
+								{
+									"key": "syllabusId",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Single Unit by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3001/api/unit/:unitId",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"api",
+								"unit",
+								":unitId"
+							],
+							"variable": [
+								{
+									"key": "unitId",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Unit",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Advanced Algebra\",\n  \"description\": \"Deep dive into algebraic concepts\",\n  \"teachingHours\": 20\n}"
+						},
+						"url": {
+							"raw": "http://localhost:3001/api/unit/:unitId",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"api",
+								"unit",
+								":unitId"
+							],
+							"variable": [
+								{
+									"key": "unitId",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Unit",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3001/api/unit/:unitId",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"api",
+								"unit",
+								":unitId"
+							],
+							"variable": [
+								{
+									"key": "unitId",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Topic",
+			"item": [
+				{
+					"name": "Create Topic",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"unitId\": \"\",\n  \"topicName\": \"Linear Equations\"\n}"
+						},
+						"url": {
+							"raw": "http://localhost:3001/api/topic",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"api",
+								"topic"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Topics by Unit ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3001/api/topic/unit/:unitId",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"api",
+								"topic",
+								"unit",
+								":unitId"
+							],
+							"variable": [
+								{
+									"key": "unitId",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Single Topic by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3001/api/topic/:topicId",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"api",
+								"topic",
+								":topicId"
+							],
+							"variable": [
+								{
+									"key": "topicId",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Topic",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"topicName\": \"Advanced Linear Equations\"\n}"
+						},
+						"url": {
+							"raw": "http://localhost:3001/api/topic/:topicId",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"api",
+								"topic",
+								":topicId"
+							],
+							"variable": [
+								{
+									"key": "topicId",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Topic",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3001/api/topic/:topicId",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"api",
+								"topic",
+								":topicId"
+							],
+							"variable": [
+								{
+									"key": "topicId",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:3001",
+			"type": "string"
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	]
+}

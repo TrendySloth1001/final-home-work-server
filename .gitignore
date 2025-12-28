@@ -23,4 +23,3 @@ logs/
 server.pid
 server.log
 init-scripts/
-readmes/*.db

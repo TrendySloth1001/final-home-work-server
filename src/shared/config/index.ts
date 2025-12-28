@@ -73,7 +73,7 @@ function validateConfig(): Config {
       provider: (process.env.AI_PROVIDER as 'ollama' | 'openai') || 'ollama',
       ollama: {
         baseUrl: process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
-        model: process.env.OLLAMA_MODEL || 'qwen2.5:7b', // Dynamically configurable via .env
+        model: process.env.OLLAMA_MODEL || 'qwen2.5:14b', // Dynamically configurable via .env
         timeout: parseInt(process.env.OLLAMA_TIMEOUT || '300000', 10), // 5 minutes for syllabus generation
       },
       ...(process.env.OPENAI_API_KEY ? {

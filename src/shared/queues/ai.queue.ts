@@ -816,12 +816,7 @@ REQUIREMENTS:
    - Format as numbered list: "1. NCERT ${subjectName} Textbook... 2. Khan Academy videos..."
    - Be specific with titles and types
 
-6. **Additional Custom Fields** (OPTIONAL): Add any extra information as key-value pairs
-   - You can add fields like: specialFocus, careerPaths, labRequirements, fieldTrips, etc.
-   - Format as JSON object: {"specialFocus": "Hands-on experiments", "careerPaths": "Engineering, Medicine", "labRequirements": "Chemistry lab with safety equipment"}
-   - Be creative and add relevant information that enhances the syllabus
-
-7. **Units** (REQUIRED): Create 4-6 thematic units, each containing:
+6. **Units** (REQUIRED): Create 4-6 thematic units, each containing:
    - **Title** (REQUIRED): Clear, descriptive unit name (e.g., "Unit 1: Introduction to Cell Biology")
    - **Description** (REQUIRED): 2-3 detailed sentences explaining the unit (minimum 40 words)
    - **teachingHours** (REQUIRED): Number of teaching hours for this unit (2-8 hours, must be realistic)
@@ -845,12 +840,6 @@ Format your response as valid JSON:
   "prerequisites": "1. Basic understanding of mathematics including algebra and geometry. 2. Familiarity with scientific notation and measurement units. 3. Completion of ${className === 'Class 10' ? 'Class 9' : 'previous grade'} ${subjectName} or equivalent coursework. 4. Ability to read and interpret graphs, charts, and data tables. 5. Basic computer literacy for research and presentations.",
   "assessmentMethods": "1. Weekly quizzes (10%) - Short assessments covering recent topics. 2. Unit tests (30%) - Comprehensive exams after each unit. 3. Laboratory work (20%) - Hands-on experiments with detailed lab reports. 4. Projects and presentations (20%) - Individual and group research projects. 5. Mid-term examination (10%) - Cumulative assessment of first-half content. 6. Final examination (10%) - Comprehensive end-of-year assessment covering all units.",
   "resources": "1. NCERT ${subjectName} Textbook for ${className} - Primary course material. 2. Reference books: [relevant author names and titles for ${subjectName}]. 3. Online resources: Khan Academy, BYJU'S, and Vedantu video lessons. 4. Laboratory equipment and materials for hands-on experiments. 5. Educational software and simulations for ${subjectName} concepts. 6. Supplementary worksheets and practice problem sets. 7. Digital resources: Interactive applets and virtual labs. 8. Library access for research projects and extended reading.",
-  "otherFields": {
-    "specialFocus": "Practical applications and real-world problem solving",
-    "careerPaths": "Engineering, Medicine, Research, Technology",
-    "labRequirements": "Well-equipped laboratory with safety measures",
-    "fieldTrips": "Science museum, research center visits"
-  },
   "units": [
     {
       "title": "Unit 1: Introduction to Fundamental Concepts",
@@ -1212,7 +1201,6 @@ IMPORTANT: Generate realistic, detailed, curriculum-aligned content. Ensure ALL 
       prerequisites: prerequisitesStr,
       assessmentMethods: assessmentMethodsStr,
       resources: resourcesStr,
-      ...(parsed.otherFields && typeof parsed.otherFields === 'object' ? { otherFields: parsed.otherFields } : {}),
       published: false, // Save as draft
       generatedBy: 'ai',
       aiPrompt: prompt,

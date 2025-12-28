@@ -32,7 +32,7 @@ interface SyllabusPayload {
   timestamp: number;
 }
 
-export interface TopicPayload {
+interface TopicPayload {
   topicId: string;
   topicName: string;
   description: string;
@@ -364,30 +364,3 @@ export async function getCacheStats(): Promise<{
 
 // Need prisma import
 import { prisma } from './prisma';
-
-
-
-
-// One IMPORTANT thing to do (don’t skip this)
-// Your future savings depend on how you store embeddings.
-// You must embed:
-// Topic
-// Class
-// Board
-// Difficulty
-// Learning objective
-// Bloom’s taxonomy (optional but OP)
-// This ensures:
-// High-quality similarity hits
-// Less false positives
-// Less AI fallback
-// Bad embeddings = AI still runs = money burns.
-
-
-// Extra win you may not realize yet
-// Your vector DB also enables:
-// Analytics (“most asked concepts”)
-// Adaptive learning (weak-area detection)
-// Follow-up questions without regeneration
-// Spaced repetition logic later
-// All from the same data. Chef’s kiss 👌

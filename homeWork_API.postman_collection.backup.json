@@ -1,0 +1,2847 @@
+{
+	"info": {
+		"_postman_id": "homework-server-complete-api",
+		"name": "homeWork Server - Complete API Collection",
+		"description": "# homeWork Server API v1\n\nComprehensive REST API for educational syllabus management with AI-powered features and RAG infrastructure.\n\n## API Version\n- **Current Version**: v1\n- **Base Path**: `/api/v1`\n- **Legacy Support**: Old `/api/*` routes redirect to `/api/v1/*`\n\n## Features\n- **Syllabus Management**: Full CRUD for syllabuses, units, and topics with version tracking\n- **Version Tracking**: Multiple AI-generated versions, comparison, and rollback capabilities\n- **Workflow Management**: Archive, stage transitions (draft/published/archived)\n- **Notifications**: Teacher notification system for AI generation and events\n- **Completion Tracking**: Auto-calculate syllabus and unit completion percentages\n- **AI Integration**: Ollama (qwen2.5:14b) for content generation and enhancement\n- **Question Bank**: Create and generate questions with multiple types (MCQ, essay, short-answer, true-false)\n- **Background Jobs**: BullMQ for async AI generation tasks\n- **Caching**: Redis-based caching for performance\n- **Vector Search**: Qdrant vector database for semantic search and embeddings\n- **Web Search**: Tavily API integration for real-time curriculum resources\n- **Health Monitoring**: Database and service health endpoints\n\n## Quick Start\n1. Ensure Docker services are running: `./start.sh`\n2. Run the collection setup workflow to create sample data\n3. Variables are auto-saved after each request\n4. Check global tests for validation\n5. Monitor system health via Health & Monitoring endpoints\n\n## Tech Stack\n- Express.js + TypeScript\n- PostgreSQL 16 with pgvector extension\n- Prisma ORM with PostgreSQL adapter\n- Ollama (qwen2.5:14b model)\n- Redis + BullMQ\n- Qdrant Vector Database\n- Tavily Web Search API\n\n## Base URL\nDefault: `http://localhost:3001/api/v1`\n\n## Infrastructure\n- PostgreSQL: `localhost:5432`\n- Redis: `localhost:6379`\n- Qdrant: `http://localhost:6333`\n- Ollama: `http://localhost:11434`",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"version": "5.0.0"
+	},
+	"item": [
+		{
+			"name": "AI Syllabus Generation",
+			"description": "AI-powered complete syllabus generation with units and topics. Asynchronous job-based workflow with draft/publish system.",
+			"item": [
+				{
+					"name": "Generate Complete Syllabus (AI)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 202) {",
+									"    const response = pm.response.json();",
+									"    pm.collectionVariables.set('generationJobId', response.data.jobId);",
+									"    console.log('✅ Generation started. Job ID:', response.data.jobId);",
+									"    console.log('⏱️ Estimated time:', response.data.estimatedTime);",
+									"    console.log('📊 Poll status with: GET /api/v1/syllabi/generate/' + response.data.jobId + '/status');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"teacherId\": \"teacher-ai-123\",\n  \"subjectName\": \"Physics\",\n  \"className\": \"Class 10\",\n  \"board\": \"CBSE\",\n  \"term\": \"Annual\",\n  \"academicYear\": \"2025\",\n  \"description\": \"Focus on mechanics, electricity, magnetism, and modern physics with practical applications and real-world examples\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/syllabi/generate",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "syllabi", "generate"]
+						},
+						"description": "**AI-Powered Syllabus Generation**\n\nGenerates a complete syllabus structure including:\n- Learning objectives (5-7 SMART goals)\n- Course overview (2-3 paragraphs)\n- 4-6 thematic units with descriptions\n- 3-5 topics per unit with keywords\n\n**Process:**\n1. Submit request → Get jobId\n2. Poll status endpoint every 5 seconds\n3. Wait for completion (30-60 seconds)\n4. Retrieve syllabusId from status\n5. Review draft syllabus\n6. Publish when ready\n\n**Optional Fields:**\n- `board`: Defaults to 'GENERAL'\n- `term`: Defaults to 'Annual'\n- `academicYear`: Defaults to current year\n- `description`: Provides focus areas for AI\n\n**Response:**\n```json\n{\n  \"success\": true,\n  \"message\": \"Syllabus generation started\",\n  \"data\": {\n    \"jobId\": \"1\",\n    \"estimatedTime\": \"30-60 seconds\"\n  }\n}\n```"
+					},
+					"response": []
+				},
+				{
+					"name": "Check Generation Status",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const response = pm.response.json();",
+									"    const status = response.data;",
+									"    ",
+									"    console.log('📊 Job Status:', status.state);",
+									"    console.log('🔄 Progress:', status.progress + '%');",
+									"    console.log('🔢 Attempts:', status.attemptsMade);",
+									"    ",
+									"    if (status.state === 'completed') {",
+									"        pm.collectionVariables.set('aiSyllabusId', status.syllabusId);",
+									"        console.log('✅ COMPLETED!');",
+									"        console.log('📝 Syllabus ID:', status.syllabusId);",
+									"        console.log('📚 Units Generated:', status.unitsCount);",
+									"        console.log('📖 Topics Generated:', status.topicsCount);",
+									"        console.log('');",
+									"        console.log('Next steps:');",
+									"        console.log('1. GET /api/v1/syllabi/' + status.syllabusId + ' to view draft');",
+									"        console.log('2. PATCH /api/v1/syllabi/' + status.syllabusId + '/publish to publish');",
+									"    } else if (status.state === 'failed') {",
+									"        console.error('❌ Generation failed:', status.error);",
+									"    } else {",
+									"        console.log('⏳ Still processing... Poll again in 5 seconds');",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/syllabi/generate/:jobId/status",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "syllabi", "generate", ":jobId", "status"],
+							"variable": [
+								{
+									"key": "jobId",
+									"value": "{{generationJobId}}",
+									"description": "Job ID from generate endpoint"
+								}
+							]
+						},
+						"description": "**Poll Generation Job Status**\n\nCheck the progress of AI syllabus generation.\n\n**Job States:**\n- `waiting` - Job queued, not started\n- `active` - Currently generating\n- `completed` - Successfully generated\n- `failed` - Error occurred\n\n**Response (Completed):**\n```json\n{\n  \"success\": true,\n  \"message\": \"Job status retrieved\",\n  \"data\": {\n    \"jobId\": \"1\",\n    \"state\": \"completed\",\n    \"progress\": 100,\n    \"attemptsMade\": 1,\n    \"syllabusId\": \"clxxxxx\",\n    \"unitsCount\": 5,\n    \"topicsCount\": 18,\n    \"error\": null\n  }\n}\n```\n\n**Polling Pattern:**\n```javascript\nwhile (state !== 'completed' && state !== 'failed') {\n  await sleep(5000); // Wait 5 seconds\n  status = await checkStatus(jobId);\n}\n```"
+					},
+					"response": []
+				},
+				{
+					"name": "Publish AI-Generated Syllabus",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const response = pm.response.json();",
+									"    console.log('✅ Syllabus published successfully!');",
+									"    console.log('📝 ID:', response.data.id);",
+									"    console.log('📊 Published:', response.data.published);",
+									"    console.log('🎯 Stage:', response.data.stage);",
+									"    console.log('🤖 Generated by:', response.data.generatedBy);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"teacherId\": \"teacher-ai-123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/syllabi/:id/publish",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "syllabi", ":id", "publish"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{aiSyllabusId}}",
+									"description": "AI-generated syllabus ID"
+								}
+							]
+						},
+						"description": "**Publish Draft Syllabus**\n\nTransition AI-generated syllabus from draft to published state.\n\n**Changes:**\n- `published`: false → true\n- `stage`: 'draft' → 'published'\n\n**Validation:**\n- Syllabus must exist\n- Must belong to specified teacher\n- Cannot publish already published syllabus\n\n**Response:**\n```json\n{\n  \"success\": true,\n  \"message\": \"Syllabus published successfully\",\n  \"data\": {\n    \"id\": \"clxxxxx\",\n    \"published\": true,\n    \"stage\": \"published\",\n    \"generatedBy\": \"ai\",\n    \"units\": [...],\n    \"topics\": [...]\n  }\n}\n```\n\n**Note:** Once published, you can filter syllabi by published status in GET endpoints."
+					},
+					"response": []
+				},
+				{
+					"name": "Get AI-Generated Draft",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/syllabi/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "syllabi", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{aiSyllabusId}}",
+									"description": "AI-generated syllabus ID"
+								}
+							]
+						},
+						"description": "**View AI-Generated Syllabus Draft**\n\nRetrieve complete syllabus structure with all units and topics before publishing.\n\n**Draft Characteristics:**\n- `published`: false\n- `stage`: 'draft'\n- `generatedBy`: 'ai'\n- `aiPrompt`: Original prompt used\n- All units have `generatedBy: 'ai'`\n- All topics have `generatedBy: 'ai'`\n\n**You can:**\n- Review AI-generated content\n- Edit titles, descriptions\n- Add/remove units or topics\n- Publish when satisfied"
+					},
+					"response": []
+				},
+				{
+					"name": "List Drafts Only",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/syllabi/teacher/:teacherId?published=false",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "syllabi", "teacher", ":teacherId"],
+							"query": [
+								{
+									"key": "published",
+									"value": "false",
+									"description": "Filter: false=drafts only, true=published only, omit=all"
+								}
+							],
+							"variable": [
+								{
+									"key": "teacherId",
+									"value": "teacher-ai-123"
+								}
+							]
+						},
+						"description": "List all draft (unpublished) syllabi for a teacher. Useful for reviewing pending AI generations."
+					},
+					"response": []
+				},
+				{
+					"name": "List Published Only",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/syllabi/teacher/:teacherId?published=true",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "syllabi", "teacher", ":teacherId"],
+							"query": [
+								{
+									"key": "published",
+									"value": "true",
+									"description": "Only show published syllabi"
+								}
+							],
+							"variable": [
+								{
+									"key": "teacherId",
+									"value": "teacher-ai-123"
+								}
+							]
+						},
+						"description": "List all published syllabi for a teacher. These are live and visible to students."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Syllabus Management",
+			"description": "CRUD operations for syllabus creation and management",
+			"item": [
+				{
+					"name": "Create Syllabus",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const response = pm.response.json();",
+									"    pm.collectionVariables.set('syllabusId', response.data.id);",
+									"    pm.collectionVariables.set('teacherId', response.data.teacherId);",
+									"    console.log('Saved syllabusId:', response.data.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"teacherId\": \"teacher123\",\n  \"subjectName\": \"Biology\",\n  \"className\": \"Class 10\",\n  \"board\": \"CBSE\",\n  \"term\": \"Annual\",\n  \"academicYear\": \"2025-26\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/syllabi",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "syllabi"]
+						},
+						"description": "Create a new syllabus. Automatically saves syllabusId to collection variables for use in other requests."
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Syllabuses (Query Params)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/syllabi?page=1&limit=10&teacherId={{teacherId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "syllabi"],
+							"query": [
+								{
+									"key": "page",
+									"value": "1",
+									"description": "Page number (default: 1)"
+								},
+								{
+									"key": "limit",
+									"value": "10",
+									"description": "Results per page (default: 10)"
+								},
+								{
+									"key": "teacherId",
+									"value": "{{teacherId}}",
+									"description": "Filter by teacher ID"
+								}
+							]
+						},
+						"description": "Retrieve all syllabuses with pagination and optional filtering by teacher. Supports query parameter format."
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Syllabuses by Teacher (URL Param)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/syllabi/teacher/:teacherId",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "syllabi", "teacher", ":teacherId"],
+							"variable": [
+								{
+									"key": "teacherId",
+									"value": "{{teacherId}}",
+									"description": "Teacher ID"
+								}
+							]
+						},
+						"description": "Alternative endpoint using URL parameter to get all syllabuses for a specific teacher."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Syllabus by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/syllabi/:id?includeUnits=true&includeTopics=true",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "syllabi", ":id"],
+							"query": [
+								{
+									"key": "includeUnits",
+									"value": "true",
+									"description": "Include nested units"
+								},
+								{
+									"key": "includeTopics",
+									"value": "true",
+									"description": "Include nested topics (requires includeUnits=true)"
+								}
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{syllabusId}}",
+									"description": "Syllabus ID"
+								}
+							]
+						},
+						"description": "Get a single syllabus with optional nested relations (units and topics)"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Syllabus",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"subjectName\": \"Advanced Biology\",\n  \"term\": \"First Term\",\n  \"academicYear\": \"2025-26\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/syllabi/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "syllabi", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{syllabusId}}"
+								}
+							]
+						},
+						"description": "Partial update of syllabus fields. Only provided fields will be updated."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Syllabus with Full Nesting",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/syllabi/:id?includeUnits=true&includeTopics=true",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "syllabi", ":id"],
+							"query": [
+								{
+									"key": "includeUnits",
+									"value": "true",
+									"description": "Include all units"
+								},
+								{
+									"key": "includeTopics",
+									"value": "true",
+									"description": "Include all topics in units"
+								}
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{syllabusId}}"
+								}
+							]
+						},
+						"description": "Get complete syllabus hierarchy with all units and topics nested. Useful for displaying full curriculum structure."
+					},
+					"response": []
+				},
+				{
+					"name": "Archive Syllabus",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"archive\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/syllabi/:id/archive",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "syllabi", ":id", "archive"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{syllabusId}}"
+								}
+							]
+						},
+						"description": "Archive or unarchive a syllabus. Archived syllabuses are hidden from active lists but retain all data.\n\n**Body**: `{ \"archive\": true }` to archive, `{ \"archive\": false }` to unarchive\n\nWhen archiving, automatically sets stage to 'archived' and updates archivedAt timestamp."
+					},
+					"response": []
+				},
+				{
+					"name": "Unarchive Syllabus",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"archive\": false\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/syllabi/:id/archive",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "syllabi", ":id", "archive"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{syllabusId}}"
+								}
+							]
+						},
+						"description": "Unarchive a syllabus to make it active again. Clears archivedAt timestamp."
+					},
+					"response": []
+				},
+				{
+					"name": "Change Syllabus Stage to Draft",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"stage\": \"draft\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/syllabi/:id/stage",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "syllabi", ":id", "stage"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{syllabusId}}"
+								}
+							]
+						},
+						"description": "Change syllabus workflow stage.\n\n**Valid stages**:\n- `draft`: Work in progress\n- `published`: Active and ready for use\n- `archived`: No longer active\n\nUse this for workflow management (draft → published → archived)."
+					},
+					"response": []
+				},
+				{
+					"name": "Change Syllabus Stage to Published",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"stage\": \"published\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/syllabi/:id/stage",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "syllabi", ":id", "stage"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{syllabusId}}"
+								}
+							]
+						},
+						"description": "Publish syllabus to make it active and visible"
+					},
+					"response": []
+				},
+				{
+					"name": "Calculate Syllabus Completion",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/syllabi/:id/calculate-completion",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "syllabi", ":id", "calculate-completion"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{syllabusId}}"
+								}
+							]
+						},
+						"description": "Auto-calculate and update syllabus completion percentage.\n\n**Calculation Logic**:\n- Counts units that have at least one topic\n- Percentage = (units with topics / total units) × 100\n- Updates `completionPercentage` field\n\nUseful for tracking curriculum development progress."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Syllabus",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/syllabi/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "syllabi", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{syllabusId}}"
+								}
+							]
+						},
+						"description": "⚠️ **Destructive Operation**\n\nDeletes syllabus and **cascade deletes**:\n- All related units\n- All related topics\n- All related questions\n- All AI generation logs\n\nUse with caution!"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Units",
+			"description": "Unit management within syllabuses",
+			"item": [
+				{
+					"name": "Create Unit",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const response = pm.response.json();",
+									"    pm.collectionVariables.set('unitId', response.data.id);",
+									"    console.log('Saved unitId:', response.data.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"syllabusId\": \"{{syllabusId}}\",\n  \"title\": \"Life Processes\",\n  \"description\": \"Study of fundamental life processes in organisms including nutrition, respiration, and excretion\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/syllabi/:syllabusId/units",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "syllabi", ":syllabusId", "units"]
+						},
+						"description": "Create a new unit within a syllabus"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Units by Syllabus (Nested Route)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/syllabi/:syllabusId/units?includeTopics=true",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "syllabi", ":syllabusId", "units"],
+							"query": [
+								{
+									"key": "includeTopics",
+									"value": "true",
+									"description": "Include topics in response"
+								}
+							],
+							"variable": [
+								{
+									"key": "syllabusId",
+									"value": "{{syllabusId}}"
+								}
+							]
+						},
+						"description": "Get all units for a specific syllabus with optional topic inclusion. Uses nested route format."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Units by Syllabus (Alternative)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/unit/syllabus/:syllabusId?includeTopics=false",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "unit", "syllabus", ":syllabusId"],
+							"query": [
+								{
+									"key": "includeTopics",
+									"value": "false",
+									"description": "Set to true to include topics"
+								}
+							],
+							"variable": [
+								{
+									"key": "syllabusId",
+									"value": "{{syllabusId}}"
+								}
+							]
+						},
+						"description": "Alternative endpoint format for getting units by syllabus ID. Same functionality, different URL structure."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Single Unit",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/unit/:unitId",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "unit", ":unitId"],
+							"variable": [
+								{
+									"key": "unitId",
+									"value": "{{unitId}}"
+								}
+							]
+						},
+						"description": "Get detailed information about a single unit by ID, including associated syllabus information."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Unit",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Advanced Life Processes\",\n  \"description\": \"In-depth study of cellular processes and metabolic pathways\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/units/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "units", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{unitId}}"
+								}
+							]
+						},
+						"description": "Update unit details (partial update)"
+					},
+					"response": []
+				},
+				{
+					"name": "Calculate Unit Completion",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/unit/:id/calculate-completion",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "unit", ":id", "calculate-completion"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{unitId}}"
+								}
+							]
+						},
+						"description": "Auto-calculate and update unit completion percentage based on topic count.\n\n**Calculation Logic**:\n- 0 topics = 0%\n- 1-2 topics = 33%\n- 3-4 topics = 66%\n- 5+ topics = 100%\n\nUpdates the `completionPercentage` field. Useful for tracking unit development progress."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Unit",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/units/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "units", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{unitId}}"
+								}
+							]
+						},
+						"description": "Delete unit and cascade delete all related topics and questions"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Topics",
+			"description": "Topic management within units",
+			"item": [
+				{
+					"name": "Create Topic",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const response = pm.response.json();",
+									"    pm.collectionVariables.set('topicId', response.data.id);",
+									"    console.log('Saved topicId:', response.data.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"unitId\": \"{{unitId}}\",\n  \"topicName\": \"Photosynthesis\",\n  \"description\": \"Process by which plants make food using sunlight, water, and carbon dioxide\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/topics",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "topics"]
+						},
+						"description": "Create a new topic within a unit"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Multiple Topics (Bulk)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const response = pm.response.json();",
+									"    if (response.data && response.data.length > 0) {",
+									"        pm.collectionVariables.set('topicId', response.data[0].id);",
+									"        console.log('Saved first topicId:', response.data[0].id);",
+									"        console.log('Created', response.data.length, 'topics');",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"unitId\": \"{{unitId}}\",\n  \"topics\": [\n    {\n      \"topicName\": \"Respiration\",\n      \"description\": \"Process of breaking down glucose to release energy\"\n    },\n    {\n      \"topicName\": \"Transportation\",\n      \"description\": \"Movement of substances in living organisms\"\n    },\n    {\n      \"topicName\": \"Excretion\",\n      \"description\": \"Removal of waste products from the body\"\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/topics/bulk",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "topics", "bulk"]
+						},
+						"description": "Create multiple topics at once for a unit. Useful for quickly setting up a complete unit structure. Accepts an array of topic objects."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Topics by Unit (Nested Route)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/units/:unitId/topics",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "units", ":unitId", "topics"],
+							"variable": [
+								{
+									"key": "unitId",
+									"value": "{{unitId}}"
+								}
+							]
+						},
+						"description": "Get all topics for a specific unit using nested route format"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Topics by Unit (Alternative)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/topic/unit/:unitId",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "topic", "unit", ":unitId"],
+							"variable": [
+								{
+									"key": "unitId",
+									"value": "{{unitId}}"
+								}
+							]
+						},
+						"description": "Alternative endpoint for getting all topics in a unit. Same functionality, different URL structure."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Single Topic",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/topic/:topicId",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "topic", ":topicId"],
+							"variable": [
+								{
+									"key": "topicId",
+									"value": "{{topicId}}"
+								}
+							]
+						},
+						"description": "Get detailed information about a single topic, including unit and syllabus hierarchy."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Topic",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"topicName\": \"Photosynthesis in Green Plants\",\n  \"description\": \"Detailed study of photosynthesis mechanism, light and dark reactions\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/topics/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "topics", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{topicId}}"
+								}
+							]
+						},
+						"description": "Update topic details (partial update)"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Topic",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/topics/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "topics", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{topicId}}"
+								}
+							]
+						},
+						"description": "Delete topic and cascade delete all related questions"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "AI Features (Ollama)",
+			"description": "AI-powered content generation using local Ollama with llama2 model. All responses are cached for performance.",
+			"item": [
+				{
+					"name": "AI Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/ai/health",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "ai", "health"]
+						},
+						"description": "**Check Ollama Service Status**\n\nVerifies:\n- Ollama connectivity\n- Available models (llama2)\n- Service response time\n- Model configuration\n\n**Prerequisites**: Ollama must be running on localhost:11434"
+					},
+					"response": []
+				},
+				{
+					"name": "🔄 Unified Job Status (All AI Jobs)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const response = pm.response.json();",
+									"    const job = response.data;",
+									"    ",
+									"    console.log('🔍 Job Details:');",
+									"    console.log('  Type:', job.jobType);",
+									"    console.log('  Status:', job.status);",
+									"    console.log('  Progress:', job.progress + '%');",
+									"    console.log('  Attempts:', job.attempts);",
+									"    console.log('  Teacher:', job.teacherId);",
+									"    ",
+									"    if (job.status === 'completed') {",
+									"        console.log('✅ COMPLETED!');",
+									"        console.log('Result:', JSON.stringify(job.result, null, 2));",
+									"    } else if (job.status === 'failed') {",
+									"        console.error('❌ FAILED:', job.error);",
+									"    } else if (job.status === 'active') {",
+									"        console.log('⚙️ Currently processing...');",
+									"    } else {",
+									"        console.log('⏳ Waiting to start...');",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/ai/job/:jobId/status",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "ai", "job", ":jobId", "status"],
+							"variable": [
+								{
+									"key": "jobId",
+									"value": "{{generationJobId}}",
+									"description": "Job ID from any AI generation endpoint"
+								}
+							]
+						},
+						"description": "**🎯 Unified Job Status Endpoint**\n\nSingle endpoint to check status of ANY AI job type.\n\n**Supported Job Types:**\n- `syllabus-generation` - Complete syllabus with units/topics\n- `questions-batch` - Bulk question generation\n- `content-enhancement` - AI content enhancement\n- `summary` - Unit/topic summaries\n- (All future AI jobs)\n\n**Job States:**\n- `waiting` - Job queued, not started\n- `active` - Currently processing\n- `completed` - Successfully finished\n- `failed` - Error occurred\n\n**Response:**\n```json\n{\n  \"success\": true,\n  \"message\": \"Job status retrieved successfully\",\n  \"data\": {\n    \"jobId\": \"1\",\n    \"jobType\": \"syllabus-generation\",\n    \"status\": \"completed\",\n    \"progress\": 100,\n    \"attempts\": 1,\n    \"result\": {\n      \"syllabusId\": \"clxxxxx\",\n      \"unitsCount\": 5,\n      \"topicsCount\": 18\n    },\n    \"error\": null,\n    \"teacherId\": \"teacher-ai-123\",\n    \"createdAt\": \"2025-12-17T10:30:00Z\",\n    \"updatedAt\": \"2025-12-17T10:31:00Z\"\n  }\n}\n```\n\n**Benefits:**\n✅ Single endpoint for all AI jobs\n✅ Consistent response format\n✅ Database-persisted (survives server restarts)\n✅ Progress tracking (0-100%)\n✅ Error messages for debugging\n✅ Job history with timestamps\n\n**Usage:**\nReplace all feature-specific status endpoints with this unified one:\n- Instead of: `GET /api/v1/syllabi/generate/:jobId/status`\n- Use: `GET /api/v1/ai/job/:jobId/status`\n- Instead of: `GET /api/v1/questions/job/:jobId`\n- Use: `GET /api/v1/ai/job/:jobId/status`"
+					},
+					"response": []
+				},
+				{
+					"name": "Generate Text (Generic)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"prompt\": \"Explain the water cycle in simple terms for a 10th grade student\",\n  \"temperature\": 0.7,\n  \"maxTokens\": 300\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/ai/generate",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "ai", "generate"]
+						},
+						"description": "**Generic AI Text Generation**\n\nGenerate any text content using Ollama's llama2 model.\n\n**Parameters**:\n- `prompt`: Your text prompt\n- `temperature`: 0.0-1.0 (creativity level, default: 0.7)\n- `maxTokens`: Maximum response length (default: 500)\n\n**Use cases**: Explanations, examples, study guides, etc."
+					},
+					"response": []
+				},
+				{
+					"name": "Chat Completion",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a helpful biology teacher for 10th grade CBSE students. Explain concepts clearly with examples.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"What is osmosis and how does it differ from diffusion?\"\n    }\n  ],\n  \"temperature\": 0.7\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/ai/chat",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "ai", "chat"]
+						},
+						"description": "**Chat-style AI Interaction**\n\nMulti-turn conversation with context awareness.\n\n**Message Roles**:\n- `system`: Sets AI behavior/personality\n- `user`: Student/teacher questions\n- `assistant`: AI responses (for context)\n\n**Use cases**: Interactive tutoring, Q&A sessions"
+					},
+					"response": []
+				},
+				{
+					"name": "Enhance Syllabus (by ID)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"teacherId\": \"{{teacherId}}\",\n  \"enhancementType\": \"objectives\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/ai/enhance-syllabus/:syllabusId",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "ai", "enhance-syllabus", ":syllabusId"],
+							"variable": [
+								{
+									"key": "syllabusId",
+									"value": "{{syllabusId}}"
+								}
+							]
+						},
+						"description": "**Enhance Syllabus with AI**\n\nGenerate enhanced content for entire syllabus.\n\n**Enhancement Types**:\n- `objectives`: Learning objectives and goals\n- `overview`: Comprehensive syllabus overview\n- `teaching-strategies`: Pedagogical approaches\n- `content`: General content enhancement"
+					},
+					"response": []
+				},
+				{
+					"name": "Enhance Content (Generic)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"syllabusId\": \"{{syllabusId}}\",\n  \"teacherId\": \"{{teacherId}}\",\n  \"enhancementType\": \"content\",\n  \"focusAreas\": [\n    \"real-world applications\",\n    \"practical examples\",\n    \"common misconceptions\",\n    \"examination tips\"\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/ai/enhance",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "ai", "enhance"]
+						},
+						"description": "**Generic Content Enhancement**\n\nFlexible endpoint for enhancing syllabuses or topics with custom focus areas.\n\n**Can specify**:\n- `syllabusId` OR `topicId`\n- `focusAreas`: Array of specific aspects to enhance\n- `enhancementType`: Type of enhancement needed\n\n**Logged to AIGeneration table** for tracking and cost analysis."
+					},
+					"response": []
+				},
+				{
+					"name": "Enhance Topic Content",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"topicId\": \"{{topicId}}\",\n  \"teacherId\": \"{{teacherId}}\",\n  \"enhancementType\": \"content\",\n  \"focusAreas\": [\n    \"key concepts\",\n    \"examples\",\n    \"analogies\",\n    \"diagrams description\"\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/ai/enhance",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "ai", "enhance"]
+						},
+						"description": "**Enhance Individual Topic**\n\nGenerate enhanced educational content for a specific topic.\n\n**Focus Areas Examples**:\n- Key concepts and principles\n- Real-world examples\n- Visual aids descriptions\n- Common student difficulties\n- Prerequisite knowledge\n- Related topics"
+					},
+					"response": []
+				},
+				{
+					"name": "Generate Unit Summary",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/ai/summary/unit/:unitId",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "ai", "summary", "unit", ":unitId"],
+							"variable": [
+								{
+									"key": "unitId",
+									"value": "{{unitId}}"
+								}
+							]
+						},
+						"description": "**Generate Unit Summary**\n\nAI-generated comprehensive summary for entire unit including all topics.\n\n**Includes**:\n- Overview of unit objectives\n- Key topics covered\n- Main learning outcomes\n- Connections between topics\n\n**Cached** for 7 days for performance."
+					},
+					"response": []
+				},
+				{
+					"name": "Generate Topic Summary",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"topicId\": \"{{topicId}}\",\n  \"teacherId\": \"{{teacherId}}\",\n  \"format\": \"detailed\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/ai/summary",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "ai", "summary"]
+						},
+						"description": "**Generate Topic Summary (Generic)**\n\nFlexible summary generation endpoint.\n\n**Parameters**:\n- `topicId` OR `unitId`: Target content\n- `format`: Summary style (brief/detailed)\n- `teacherId`: For logging\n\n**Formats**:\n- `brief`: Quick overview (2-3 paragraphs)\n- `detailed`: Comprehensive summary with sections\n\n**Results cached** and logged to AIGeneration table."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Question Bank",
+			"description": "Comprehensive question management system with AI-powered generation and manual creation. Supports MCQ, short-answer, essay, and true/false questions with difficulty levels and point values.",
+			"item": [
+				{
+					"name": "AI Generation - Overview",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/ai/health",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "ai", "health"]
+						},
+						"description": "**Question Generation Overview**\n\n🤖 **AI-Powered Generation**:\n- Uses Ollama with llama2 model\n- Supports: MCQ, short-answer, essay, true-false\n- Difficulty levels: easy, medium, hard\n- Results cached for 7 days\n- All generations logged to AIGeneration table\n\n⚡ **Generation Modes**:\n1. **Sync (1-3 questions)**: Instant response\n2. **Async (4+ questions)**: Background job with status tracking\n\n📊 **Best Practices**:\n- Use sync for quick tests\n- Use async for bulk generation (>3 questions)\n- Monitor job status for async operations\n- Check AI health before bulk operations\n\n**Start here** to verify AI service is running before generation."
+					},
+					"response": []
+				},
+				{
+					"name": "Generate Questions (Small Batch - Sync)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200 && pm.response.json().data.questions) {",
+									"    const response = pm.response.json();",
+									"    if (response.data.questions.length > 0) {",
+									"        pm.collectionVariables.set('questionId', response.data.questions[0].id);",
+									"        console.log('Saved first questionId:', response.data.questions[0].id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"topicId\": \"{{topicId}}\",\n  \"teacherId\": \"{{teacherId}}\",\n  \"count\": 3,\n  \"questionType\": \"mcq\",\n  \"difficulty\": \"easy\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/questions/generate",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "questions", "generate"]
+						},
+						"description": "Generate 1-3 questions synchronously (instant response). Use this for small batches when you need immediate results."
+					},
+					"response": []
+				},
+				{
+					"name": "Generate Questions (Large Batch - Async)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200 && pm.response.json().data.jobId) {",
+									"    const response = pm.response.json();",
+									"    pm.collectionVariables.set('jobId', response.data.jobId);",
+									"    console.log('Saved jobId:', response.data.jobId);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"topicId\": \"{{topicId}}\",\n  \"teacherId\": \"{{teacherId}}\",\n  \"count\": 20,\n  \"questionType\": \"mcq\",\n  \"difficulty\": \"medium\",\n  \"useQueue\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/questions/generate",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "questions", "generate"]
+						},
+						"description": "Generate large batch (>3) of questions in background using BullMQ. Returns job ID for status tracking."
+					},
+					"response": []
+				},
+				{
+					"name": "Check Job Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/questions/job/:jobId",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "questions", "job", ":jobId"],
+							"variable": [
+								{
+									"key": "jobId",
+									"value": "{{jobId}}"
+								}
+							]
+						},
+						"description": "Check status of background question generation job. Returns: waiting, active, completed, or failed."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Question Manually (Short Answer)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const response = pm.response.json();",
+									"    pm.collectionVariables.set('questionId', response.data.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"topicId\": \"{{topicId}}\",\n  \"teacherId\": \"{{teacherId}}\",\n  \"questionText\": \"What is photosynthesis?\",\n  \"questionType\": \"short-answer\",\n  \"difficulty\": \"easy\",\n  \"points\": 2,\n  \"correctAnswer\": \"The process by which plants make food using sunlight, water, and carbon dioxide\",\n  \"explanation\": \"Photosynthesis converts light energy into chemical energy stored in glucose molecules\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/questions",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "questions"]
+						},
+						"description": "Create a short-answer question manually (non-AI)"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Question Manually (MCQ)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"topicId\": \"{{topicId}}\",\n  \"teacherId\": \"{{teacherId}}\",\n  \"questionText\": \"Which organelle is responsible for photosynthesis?\",\n  \"questionType\": \"mcq\",\n  \"difficulty\": \"easy\",\n  \"points\": 1,\n  \"options\": [\n    \"Mitochondria\",\n    \"Chloroplast\",\n    \"Ribosome\",\n    \"Nucleus\"\n  ],\n  \"correctAnswer\": \"Chloroplast\",\n  \"explanation\": \"Chloroplasts contain chlorophyll and are the site of photosynthesis in plant cells\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/questions",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "questions"]
+						},
+						"description": "Create a multiple choice question with options array"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Question Manually (True/False)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"topicId\": \"{{topicId}}\",\n  \"teacherId\": \"{{teacherId}}\",\n  \"questionText\": \"Photosynthesis occurs in the mitochondria.\",\n  \"questionType\": \"true-false\",\n  \"difficulty\": \"easy\",\n  \"points\": 1,\n  \"correctAnswer\": \"False\",\n  \"explanation\": \"Photosynthesis occurs in chloroplasts, not mitochondria. Mitochondria are responsible for cellular respiration.\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/questions",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "questions"]
+						},
+						"description": "Create a true/false question"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Question Manually (Essay)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"topicId\": \"{{topicId}}\",\n  \"teacherId\": \"{{teacherId}}\",\n  \"questionText\": \"Explain the process of photosynthesis in detail, including light and dark reactions.\",\n  \"questionType\": \"essay\",\n  \"difficulty\": \"hard\",\n  \"points\": 10,\n  \"explanation\": \"Students should cover: light-dependent reactions in thylakoids, light-independent reactions (Calvin cycle), role of chlorophyll, products (glucose and oxygen), and overall importance.\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/questions",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "questions"]
+						},
+						"description": "Create an essay-type question (no correctAnswer field required)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Questions (Filtered)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/questions?topicId={{topicId}}&page=1&limit=10",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "questions"],
+							"query": [
+								{
+									"key": "topicId",
+									"value": "{{topicId}}",
+									"description": "Filter by topic (required)"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								},
+								{
+									"key": "difficulty",
+									"value": "medium",
+									"disabled": true,
+									"description": "Filter: easy, medium, hard"
+								},
+								{
+									"key": "questionType",
+									"value": "mcq",
+									"disabled": true,
+									"description": "Filter: mcq, short-answer, essay, true-false"
+								},
+								{
+									"key": "generatedBy",
+									"value": "ai",
+									"disabled": true,
+									"description": "Filter: ai, manual"
+								}
+							]
+						},
+						"description": "Get questions with filtering by topic, difficulty, type, and generation method. Results are cached."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Questions by Difficulty (Easy)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/questions?topicId={{topicId}}&difficulty=easy",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "questions"],
+							"query": [
+								{
+									"key": "topicId",
+									"value": "{{topicId}}"
+								},
+								{
+									"key": "difficulty",
+									"value": "easy"
+								}
+							]
+						},
+						"description": "Get only easy difficulty questions"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Questions by Difficulty (Hard)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/questions?topicId={{topicId}}&difficulty=hard",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "questions"],
+							"query": [
+								{
+									"key": "topicId",
+									"value": "{{topicId}}"
+								},
+								{
+									"key": "difficulty",
+									"value": "hard"
+								}
+							]
+						},
+						"description": "Get only hard difficulty questions"
+					},
+					"response": []
+				},
+				{
+					"name": "Get AI-Generated Questions Only",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/questions?topicId={{topicId}}&generatedBy=ai",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "questions"],
+							"query": [
+								{
+									"key": "topicId",
+									"value": "{{topicId}}"
+								},
+								{
+									"key": "generatedBy",
+									"value": "ai"
+								}
+							]
+						},
+						"description": "Get only AI-generated questions (excludes manually created)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Manual Questions Only",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/questions?topicId={{topicId}}&generatedBy=manual",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "questions"],
+							"query": [
+								{
+									"key": "topicId",
+									"value": "{{topicId}}"
+								},
+								{
+									"key": "generatedBy",
+									"value": "manual"
+								}
+							]
+						},
+						"description": "Get only manually created questions"
+					},
+					"response": []
+				},
+				{
+					"name": "Get MCQ Questions Only",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/questions?topicId={{topicId}}&questionType=mcq",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "questions"],
+							"query": [
+								{
+									"key": "topicId",
+									"value": "{{topicId}}"
+								},
+								{
+									"key": "questionType",
+									"value": "mcq"
+								}
+							]
+						},
+						"description": "Get only multiple choice questions"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Question by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/questions/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "questions", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{questionId}}"
+								}
+							]
+						},
+						"description": "Get a single question by ID with all details"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Question",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"difficulty\": \"hard\",\n  \"points\": 5,\n  \"explanation\": \"Updated explanation with more detailed information about the photosynthesis process\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/questions/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "questions", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{questionId}}"
+								}
+							]
+						},
+						"description": "Update question fields (partial update). Cache is invalidated automatically."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Question",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/questions/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "questions", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{questionId}}"
+								}
+							]
+						},
+						"description": "Delete a question. Cache is invalidated automatically."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Complete Workflows",
+			"description": "**End-to-End Testing Workflows**\n\nPre-built sequences of API calls that demonstrate complete use cases. Run these folders sequentially to test full functionality.\n\n**Available Workflows**:\n1. **Setup Complete Syllabus**: Create syllabus → unit → topic → generate questions\n2. **Mixed Question Generation**: Generate various question types and difficulties\n3. **AI Content Enhancement**: Use AI to enhance syllabus content\n4. **Background Job Processing**: Test async question generation\n\n💡 **Tip**: Use Postman's Collection Runner to execute entire workflows automatically.",
+			"item": [
+				{
+					"name": "1. Setup Complete Syllabus",
+					"item": [
+						{
+							"name": "Step 1 - Create Syllabus",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"if (pm.response.code === 201) {",
+											"    const response = pm.response.json();",
+											"    pm.collectionVariables.set('syllabusId', response.data.id);",
+											"    pm.collectionVariables.set('teacherId', response.data.teacherId);",
+											"    console.log('✅ Syllabus created:', response.data.id);",
+											"}"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"teacherId\": \"teacher123\",\n  \"subjectName\": \"Biology\",\n  \"className\": \"Class 10\",\n  \"board\": \"CBSE\",\n  \"term\": \"Annual\",\n  \"academicYear\": \"2025-26\"\n}"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/v1/syllabi",
+									"host": ["{{baseUrl}}"],
+									"path": ["api", "v1", "syllabi"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Step 2 - Create Unit",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"if (pm.response.code === 201) {",
+											"    const response = pm.response.json();",
+											"    pm.collectionVariables.set('unitId', response.data.id);",
+											"    console.log('✅ Unit created:', response.data.id);",
+											"}"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"syllabusId\": \"{{syllabusId}}\",\n  \"title\": \"Life Processes\",\n  \"description\": \"Study of fundamental life processes\"\n}"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/v1/syllabi/:syllabusId/units",
+									"host": ["{{baseUrl}}"],
+									"path": ["api", "v1", "syllabi", ":syllabusId", "units"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Step 3 - Create Topic",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"if (pm.response.code === 201) {",
+											"    const response = pm.response.json();",
+											"    pm.collectionVariables.set('topicId', response.data.id);",
+											"    console.log('✅ Topic created:', response.data.id);",
+											"}"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"unitId\": \"{{unitId}}\",\n  \"topicName\": \"Photosynthesis\",\n  \"description\": \"Process by which plants make food\"\n}"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/v1/topics",
+									"host": ["{{baseUrl}}"],
+									"path": ["api", "v1", "topics"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Step 4 - Generate Questions",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"if (pm.response.code === 200) {",
+											"    const response = pm.response.json();",
+											"    console.log('✅ Generated', response.data.count, 'questions');",
+											"}"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"topicId\": \"{{topicId}}\",\n  \"teacherId\": \"{{teacherId}}\",\n  \"count\": 5,\n  \"questionType\": \"mcq\",\n  \"difficulty\": \"medium\"\n}"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/v1/questions/generate",
+									"host": ["{{baseUrl}}"],
+									"path": ["api", "v1", "questions", "generate"]
+								}
+							},
+							"response": []
+						}
+					],
+					"description": "Run these 4 requests in order to create a complete syllabus with AI-generated questions"
+				},
+				{
+					"name": "2. Mixed Question Generation",
+					"item": [
+						{
+							"name": "Generate Easy MCQs",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"topicId\": \"{{topicId}}\",\n  \"teacherId\": \"{{teacherId}}\",\n  \"count\": 5,\n  \"questionType\": \"mcq\",\n  \"difficulty\": \"easy\"\n}"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/v1/questions/generate",
+									"host": ["{{baseUrl}}"],
+									"path": ["api", "v1", "questions", "generate"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Generate Medium Short-Answer",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"topicId\": \"{{topicId}}\",\n  \"teacherId\": \"{{teacherId}}\",\n  \"count\": 3,\n  \"questionType\": \"short-answer\",\n  \"difficulty\": \"medium\"\n}"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/v1/questions/generate",
+									"host": ["{{baseUrl}}"],
+									"path": ["api", "v1", "questions", "generate"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Generate Hard Essays",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"topicId\": \"{{topicId}}\",\n  \"teacherId\": \"{{teacherId}}\",\n  \"count\": 2,\n  \"questionType\": \"essay\",\n  \"difficulty\": \"hard\"\n}"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/v1/questions/generate",
+									"host": ["{{baseUrl}}"],
+									"path": ["api", "v1", "questions", "generate"]
+								}
+							},
+							"response": []
+						}
+					],
+					"description": "Generate a variety of question types and difficulties"
+				},
+				{
+					"name": "3. AI Content Enhancement Workflow",
+					"item": [
+						{
+							"name": "Step 1 - Check AI Health",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/api/v1/ai/health",
+									"host": ["{{baseUrl}}"],
+									"path": ["api", "v1", "ai", "health"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Step 2 - Enhance Syllabus Objectives",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"teacherId\": \"{{teacherId}}\",\n  \"enhancementType\": \"objectives\"\n}"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/v1/ai/enhance-syllabus/:syllabusId",
+									"host": ["{{baseUrl}}"],
+									"path": ["api", "v1", "ai", "enhance-syllabus", ":syllabusId"],
+									"variable": [
+										{
+											"key": "syllabusId",
+											"value": "{{syllabusId}}"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Step 3 - Generate Unit Summary",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/api/v1/ai/summary/unit/:unitId",
+									"host": ["{{baseUrl}}"],
+									"path": ["api", "v1", "ai", "summary", "unit", ":unitId"],
+									"variable": [
+										{
+											"key": "unitId",
+											"value": "{{unitId}}"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Step 4 - Enhance Topic Content",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"topicId\": \"{{topicId}}\",\n  \"teacherId\": \"{{teacherId}}\",\n  \"enhancementType\": \"content\",\n  \"focusAreas\": [\"examples\", \"real-world applications\", \"key concepts\"]\n}"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/v1/ai/enhance",
+									"host": ["{{baseUrl}}"],
+									"path": ["api", "v1", "ai", "enhance"]
+								}
+							},
+							"response": []
+						}
+					],
+					"description": "Complete AI enhancement workflow: check health → enhance syllabus → generate summaries → enhance topics"
+				},
+				{
+					"name": "4. Background Job Processing Workflow",
+					"item": [
+						{
+							"name": "Step 1 - Queue Large Batch",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"if (pm.response.code === 200) {",
+											"    const response = pm.response.json();",
+											"    if (response.data.jobId) {",
+											"        pm.collectionVariables.set('jobId', response.data.jobId);",
+											"        console.log('✅ Job queued:', response.data.jobId);",
+											"        console.log('⏱️ Estimated time:', response.data.estimatedTime, 'seconds');",
+											"    }",
+											"}"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"topicId\": \"{{topicId}}\",\n  \"teacherId\": \"{{teacherId}}\",\n  \"count\": 15,\n  \"questionType\": \"mcq\",\n  \"difficulty\": \"medium\",\n  \"useQueue\": true\n}"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/v1/questions/generate",
+									"host": ["{{baseUrl}}"],
+									"path": ["api", "v1", "questions", "generate"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Step 2 - Check Job Status (Immediate)",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/api/v1/questions/job/:jobId",
+									"host": ["{{baseUrl}}"],
+									"path": ["api", "v1", "questions", "job", ":jobId"],
+									"variable": [
+										{
+											"key": "jobId",
+											"value": "{{jobId}}"
+										}
+									]
+								},
+								"description": "Check immediately - likely 'waiting' or 'active'"
+							},
+							"response": []
+						},
+						{
+							"name": "Step 3 - Check Job Status (After Delay)",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/api/v1/questions/job/:jobId",
+									"host": ["{{baseUrl}}"],
+									"path": ["api", "v1", "questions", "job", ":jobId"],
+									"variable": [
+										{
+											"key": "jobId",
+											"value": "{{jobId}}"
+										}
+									]
+								},
+								"description": "Check after waiting - should be 'completed' or 'failed'"
+							},
+							"response": []
+						},
+						{
+							"name": "Step 4 - Verify Generated Questions",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/api/v1/questions?topicId={{topicId}}&generatedBy=ai&limit=20",
+									"host": ["{{baseUrl}}"],
+									"path": ["api", "v1", "questions"],
+									"query": [
+										{
+											"key": "topicId",
+											"value": "{{topicId}}"
+										},
+										{
+											"key": "generatedBy",
+											"value": "ai"
+										},
+										{
+											"key": "limit",
+											"value": "20"
+										}
+									]
+								},
+								"description": "Verify all AI-generated questions were created"
+							},
+							"response": []
+						}
+					],
+					"description": "Test background job processing: queue large batch → monitor status → verify results. Use 30-60 second delays between status checks."
+				},
+				{
+					"name": "5. Complete CRUD Operations",
+					"item": [
+						{
+							"name": "Create Syllabus with Details",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"if (pm.response.code === 201) {",
+											"    const response = pm.response.json();",
+											"    pm.collectionVariables.set('syllabusId', response.data.id);",
+											"    console.log('✅ Created syllabus:', response.data.id);",
+											"}"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"teacherId\": \"teacher456\",\n  \"subjectName\": \"Physics\",\n  \"className\": \"Class 11\",\n  \"board\": \"CBSE\",\n  \"term\": \"First Term\",\n  \"academicYear\": \"2025-26\",\n  \"overview\": \"Comprehensive physics curriculum covering mechanics, thermodynamics, and optics\",\n  \"objectives\": \"Students will understand fundamental physics concepts and apply them to real-world problems\"\n}"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/v1/syllabi",
+									"host": ["{{baseUrl}}"],
+									"path": ["api", "v1", "syllabi"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Read Syllabus with Full Nesting",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/api/v1/syllabi/:id?includeUnits=true&includeTopics=true",
+									"host": ["{{baseUrl}}"],
+									"path": ["api", "v1", "syllabi", ":id"],
+									"query": [
+										{
+											"key": "includeUnits",
+											"value": "true"
+										},
+										{
+											"key": "includeTopics",
+											"value": "true"
+										}
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "{{syllabusId}}"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Syllabus Details",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"overview\": \"Updated comprehensive physics curriculum with emphasis on practical applications\",\n  \"objectives\": \"Enhanced learning objectives focusing on problem-solving and critical thinking\"\n}"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/v1/syllabi/:id",
+									"host": ["{{baseUrl}}"],
+									"path": ["api", "v1", "syllabi", ":id"],
+									"variable": [
+										{
+											"key": "id",
+											"value": "{{syllabusId}}"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Syllabus (Cleanup)",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/api/v1/syllabi/:id",
+									"host": ["{{baseUrl}}"],
+									"path": ["api", "v1", "syllabi", ":id"],
+									"variable": [
+										{
+											"key": "id",
+											"value": "{{syllabusId}}"
+										}
+									]
+								}
+							},
+							"response": []
+						}
+					],
+					"description": "Complete CRUD workflow: Create → Read → Update → Delete with detailed data"
+				}
+			]
+		},
+		{
+			"name": "Notifications",
+			"description": "Teacher notification system for tracking AI generation completion and other events",
+			"item": [
+				{
+					"name": "Create Notification",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const response = pm.response.json();",
+									"    pm.collectionVariables.set('notificationId', response.data.id);",
+									"    console.log('Saved notificationId:', response.data.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"teacherId\": \"{{teacherId}}\",\n  \"message\": \"Your question generation for Photosynthesis is complete\",\n  \"type\": \"ai_generation\",\n  \"relatedEntityType\": \"topic\",\n  \"relatedEntityId\": \"{{topicId}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/notifications",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "notifications"]
+						},
+						"description": "Create a new notification for a teacher. Used internally by the system to notify about AI generation completion, errors, etc."
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Notifications",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/notifications?teacherId={{teacherId}}&page=1&limit=10",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "notifications"],
+							"query": [
+								{
+									"key": "teacherId",
+									"value": "{{teacherId}}",
+									"description": "Teacher ID (required)"
+								},
+								{
+									"key": "page",
+									"value": "1",
+									"description": "Page number"
+								},
+								{
+									"key": "limit",
+									"value": "10",
+									"description": "Results per page"
+								},
+								{
+									"key": "isRead",
+									"value": "false",
+									"disabled": true,
+									"description": "Filter by read status (true/false)"
+								}
+							]
+						},
+						"description": "Get paginated list of notifications for a teacher with optional filtering by read status. Also returns unread count."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Unread Notifications Only",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/notifications?teacherId={{teacherId}}&isRead=false",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "notifications"],
+							"query": [
+								{
+									"key": "teacherId",
+									"value": "{{teacherId}}"
+								},
+								{
+									"key": "isRead",
+									"value": "false"
+								}
+							]
+						},
+						"description": "Filter to show only unread notifications"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Single Notification",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/notifications/:id?teacherId={{teacherId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "notifications", ":id"],
+							"query": [
+								{
+									"key": "teacherId",
+									"value": "{{teacherId}}"
+								}
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "NOTIFICATION_ID_HERE",
+									"description": "Notification ID"
+								}
+							]
+						},
+						"description": "Get details of a specific notification"
+					},
+					"response": []
+				},
+				{
+					"name": "Mark Notification as Read",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"teacherId\": \"{{teacherId}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/notifications/:id/read",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "notifications", ":id", "read"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "NOTIFICATION_ID_HERE"
+								}
+							]
+						},
+						"description": "Mark a specific notification as read"
+					},
+					"response": []
+				},
+				{
+					"name": "Mark All Notifications as Read",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"teacherId\": \"{{teacherId}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/notifications/read-all",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "notifications", "read-all"]
+						},
+						"description": "Mark all notifications as read for a teacher. Useful for 'clear all' functionality."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Notification",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"teacherId\": \"{{teacherId}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/notifications/:id",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "notifications", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "NOTIFICATION_ID_HERE"
+								}
+							]
+						},
+						"description": "Delete a specific notification"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete All Notifications",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"teacherId\": \"{{teacherId}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/notifications/all",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "notifications", "all"]
+						},
+						"description": "Delete all notifications for a teacher. Use with caution - this is permanent!"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Health & Monitoring",
+			"description": "**System Health & Infrastructure Monitoring**\n\nEndpoints for monitoring application health, database status, and infrastructure services.\n\n**Available Checks**:\n- Server Health\n- Database Health (PostgreSQL + pgvector)\n- Database Statistics & Information\n- AI Service (Ollama)\n- API Documentation\n\n💡 **Use cases**:\n- Production health checks\n- Monitoring dashboards\n- Troubleshooting connectivity\n- Verifying extension installation\n- Performance monitoring",
+			"item": [
+				{
+					"name": "Server Health",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/health",
+							"host": ["{{baseUrl}}"],
+							"path": ["health"]
+						},
+						"description": "**Server Health Check**\n\nReturns:\n- Success status\n- Environment (development/production)\n- Timestamp\n- Server uptime\n\nUse this for monitoring and load balancer health checks."
+					},
+					"response": []
+				},
+				{
+					"name": "Database Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/health/db",
+							"host": ["{{baseUrl}}"],
+							"path": ["health", "db"]
+						},
+						"description": "**Quick Database Health Check**\n\n✅ **Returns**:\n- Connection status (connected: true/false)\n- Database type (PostgreSQL)\n- PostgreSQL version\n- Response time in milliseconds\n- pgvector extension status\n\n**Use cases**:\n- Production health checks\n- CI/CD pipeline validation\n- Load balancer health endpoints\n- Quick connectivity verification\n\n**Expected Response**:\n```json\n{\n  \"success\": true,\n  \"message\": \"Database is healthy\",\n  \"database\": {\n    \"connected\": true,\n    \"type\": \"PostgreSQL\",\n    \"version\": \"PostgreSQL 16.11\",\n    \"responseTime\": \"2ms\",\n    \"extensions\": {\n      \"pgvector\": true\n    }\n  }\n}\n```"
+					},
+					"response": []
+				},
+				{
+					"name": "Database Information & Statistics",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/database/info",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "database", "info"]
+						},
+						"description": "**Comprehensive Database Information**\n\n📊 **Returns**:\n- **Version**: PostgreSQL version\n- **Size**: Database size in KB/MB\n- **Connection**: Masked connection URL\n- **Response Time**: Query execution time\n- **Extensions**: All installed PostgreSQL extensions with versions\n- **Statistics**: Record counts for all tables\n  - Syllabuses\n  - Units\n  - Topics\n  - Questions\n  - AI Generations\n  - Notifications\n  - Total count across all entities\n\n**Use cases**:\n- Monitoring dashboards\n- Database statistics reporting\n- Extension verification (pgvector, uuid-ossp, pg_trgm)\n- Data growth tracking\n- Performance monitoring\n\n**Expected Response**:\n```json\n{\n  \"success\": true,\n  \"message\": \"Database information retrieved\",\n  \"database\": {\n    \"version\": \"PostgreSQL 16.11\",\n    \"size\": \"8108 kB\",\n    \"connection\": \"postgresql://homework:***@localhost:5432/homeworkdb\",\n    \"responseTime\": \"11ms\",\n    \"extensions\": [\n      { \"name\": \"vector\", \"version\": \"0.8.1\" },\n      { \"name\": \"uuid-ossp\", \"version\": \"1.1\" },\n      { \"name\": \"pg_trgm\", \"version\": \"1.6\" }\n    ],\n    \"statistics\": {\n      \"syllabuses\": 0,\n      \"units\": 0,\n      \"topics\": 0,\n      \"questions\": 0,\n      \"aiGenerations\": 0,\n      \"notifications\": 0,\n      \"total\": 0\n    }\n  }\n}\n```"
+					},
+					"response": []
+				},
+				{
+					"name": "API Root Info",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/",
+							"host": ["{{baseUrl}}"],
+							"path": [""]
+						},
+						"description": "**API Information Endpoint**\n\nReturns complete API documentation including:\n- Version information\n- Available endpoints\n- Endpoint categories\n- Quick reference\n\nUseful for API discovery and documentation."
+					},
+					"response": []
+				},
+				{
+					"name": "AI Service Health (Ollama)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/ai/health",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "ai", "health"]
+						},
+						"description": "**Ollama Service Health Check**\n\nVerifies:\n- Ollama connectivity (localhost:11434)\n- Model availability (llama2)\n- Service response time\n- Configuration status\n\n**Prerequisites**: \n- Ollama installed\n- llama2 model pulled\n- Ollama service running\n\n**Troubleshooting**:\nIf this fails, run:\n```bash\nollama serve\nollama pull llama2\n```"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Edge Cases & Validation",
+			"description": "Test error handling, validation, and edge cases to ensure robust API behavior",
+			"item": [
+				{
+					"name": "Error - Missing Required Field",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"subjectName\": \"Biology\",\n  \"className\": \"Class 10\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/syllabi",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "syllabi"]
+						},
+						"description": "**Test Validation Error**\n\nExpected: 400 Bad Request\n\nMissing required fields: teacherId, board, term, academicYear\n\nValidates error handling for incomplete requests."
+					},
+					"response": []
+				},
+				{
+					"name": "Error - Invalid Syllabus ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/syllabi/invalid-id-12345",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "syllabi", "invalid-id-12345"]
+						},
+						"description": "**Test Not Found Error**\n\nExpected: 404 Not Found\n\nValidates proper error response for non-existent resources."
+					},
+					"response": []
+				},
+				{
+					"name": "Error - Duplicate Syllabus",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"teacherId\": \"{{teacherId}}\",\n  \"subjectName\": \"Biology\",\n  \"className\": \"Class 10\",\n  \"board\": \"CBSE\",\n  \"term\": \"Annual\",\n  \"academicYear\": \"2025-26\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/syllabi",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "syllabi"]
+						},
+						"description": "**Test Duplicate Prevention**\n\nExpected: 409 Conflict (if duplicate exists)\n\nRun this after creating a syllabus with same details to test duplicate detection."
+					},
+					"response": []
+				},
+				{
+					"name": "Edge Case - Empty Options Array",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"topicId\": \"{{topicId}}\",\n  \"teacherId\": \"{{teacherId}}\",\n  \"questionText\": \"Test question with empty options\",\n  \"questionType\": \"mcq\",\n  \"difficulty\": \"easy\",\n  \"options\": [],\n  \"correctAnswer\": \"A\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/questions",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "questions"]
+						},
+						"description": "**Test Edge Case**\n\nTests handling of MCQ with empty options array.\n\nExpected: Should validate and reject or handle gracefully."
+					},
+					"response": []
+				},
+				{
+					"name": "Pagination - First Page",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/questions?topicId={{topicId}}&page=1&limit=5",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "questions"],
+							"query": [
+								{
+									"key": "topicId",
+									"value": "{{topicId}}"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "5"
+								}
+							]
+						},
+						"description": "**Test Pagination**\n\nValidate pagination metadata:\n- Total count\n- Total pages\n- Current page\n- Results per page"
+					},
+					"response": []
+				},
+				{
+					"name": "Pagination - Last Page",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/questions?topicId={{topicId}}&page=999&limit=10",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "questions"],
+							"query": [
+								{
+									"key": "topicId",
+									"value": "{{topicId}}"
+								},
+								{
+									"key": "page",
+									"value": "999"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						},
+						"description": "**Test Pagination Edge Case**\n\nRequest page beyond available data.\n\nExpected: Empty results array with correct pagination metadata."
+					},
+					"response": []
+				},
+				{
+					"name": "Cache Test - Duplicate Request",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/questions?topicId={{topicId}}&page=1&limit=10",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "questions"],
+							"query": [
+								{
+									"key": "topicId",
+									"value": "{{topicId}}"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						},
+						"description": "**Test Caching**\n\nRun this multiple times in quick succession.\n\nSecond request should be faster (served from Redis cache).\n\nCheck response times to verify caching effectiveness."
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Global pre-request script",
+					"console.log('\\n' + '='.repeat(60));",
+					"console.log('📤 REQUEST:', pm.request.method, pm.request.url.toString());",
+					"console.log('⏰ Timestamp:', new Date().toISOString());",
+					"",
+					"// Log request body if present",
+					"if (pm.request.body && pm.request.body.mode === 'raw') {",
+					"    try {",
+					"        const body = JSON.parse(pm.request.body.raw);",
+					"        console.log('📦 Body:', JSON.stringify(body, null, 2).substring(0, 200));",
+					"    } catch(e) {",
+					"        console.log('📦 Body: [Unable to parse]');",
+					"    }",
+					"}",
+					"",
+					"// Log active variables",
+					"console.log('🔑 Active IDs:', {",
+					"    syllabus: pm.collectionVariables.get('syllabusId') || 'none',",
+					"    unit: pm.collectionVariables.get('unitId') || 'none',",
+					"    topic: pm.collectionVariables.get('topicId') || 'none',",
+					"    question: pm.collectionVariables.get('questionId') || 'none'",
+					"});"
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Global test script - comprehensive validation",
+					"",
+					"// Test 1: Status Code",
+					"pm.test('✅ Status code is successful', function () {",
+					"    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+					"});",
+					"",
+					"// Test 2: Response Time",
+					"pm.test('⚡ Response time is acceptable', function () {",
+					"    pm.expect(pm.response.responseTime).to.be.below(5000);",
+					"});",
+					"",
+					"// Test 3: Response Structure",
+					"if (pm.response.code !== 204) {",
+					"    pm.test('📋 Response has correct structure', function () {",
+					"        const jsonData = pm.response.json();",
+					"        pm.expect(jsonData).to.have.property('success');",
+					"        pm.expect(jsonData).to.have.property('message');",
+					"        ",
+					"        // Validate success is boolean",
+					"        pm.expect(typeof jsonData.success).to.equal('boolean');",
+					"        ",
+					"        // Validate message is string",
+					"        pm.expect(typeof jsonData.message).to.equal('string');",
+					"    });",
+					"    ",
+					"    // Test 4: Content Type",
+					"    pm.test('📄 Content-Type is JSON', function () {",
+					"        pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json');",
+					"    });",
+					"}",
+					"",
+					"// Log response details",
+					"console.log('📥 RESPONSE:', pm.response.code, pm.response.status);",
+					"console.log('⏱️  Response Time:', pm.response.responseTime + 'ms');",
+					"console.log('📊 Size:', pm.response.size().body, 'bytes');",
+					"",
+					"// Log response data summary",
+					"if (pm.response.code !== 204) {",
+					"    try {",
+					"        const response = pm.response.json();",
+					"        if (response.data) {",
+					"            if (Array.isArray(response.data)) {",
+					"                console.log('📦 Data: Array with', response.data.length, 'items');",
+					"            } else if (response.data.id) {",
+					"                console.log('📦 Data: Object with ID:', response.data.id);",
+					"            } else {",
+					"                console.log('📦 Data: Object');",
+					"            }",
+					"        }",
+					"        if (response.count !== undefined) {",
+					"            console.log('🔢 Count:', response.count);",
+					"        }",
+					"    } catch(e) {",
+					"        console.log('⚠️  Could not parse response');",
+					"    }",
+					"}",
+					"console.log('='.repeat(60) + '\\n');"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:3001",
+			"type": "string",
+			"description": "API server base URL. Change to production URL when deploying."
+		},
+		{
+			"key": "syllabusId",
+			"value": "",
+			"type": "string",
+			"description": "Auto-saved syllabus ID from creation requests. Used across multiple endpoints."
+		},
+		{
+			"key": "unitId",
+			"value": "",
+			"type": "string",
+			"description": "Auto-saved unit ID from creation requests."
+		},
+		{
+			"key": "topicId",
+			"value": "",
+			"type": "string",
+			"description": "Auto-saved topic ID from creation requests."
+		},
+		{
+			"key": "questionId",
+			"value": "",
+			"type": "string",
+			"description": "Auto-saved question ID from creation/generation requests."
+		},
+		{
+			"key": "teacherId",
+			"value": "teacher123",
+			"type": "string",
+			"description": "Default teacher ID. Change to your teacher identifier or use dynamic value."
+		},
+		{
+			"key": "jobId",
+			"value": "",
+			"type": "string",
+			"description": "Auto-saved BullMQ job ID for tracking async operations (question generation)."
+		},
+		{
+			"key": "notificationId",
+			"value": "",
+			"type": "string",
+			"description": "Auto-saved notification ID from creation requests."
+		}
+	],
+	"auth": null
+}

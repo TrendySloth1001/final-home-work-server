@@ -9,8 +9,6 @@ export interface AIGenerationJobData {
   topicId?: string;
   unitId?: string;
   syllabusId?: string;
-  conversationId?: string;  // Link to conversation for AI assistant
-  toolExecutionId?: string;  // Link to tool execution for tracking
   
   // For question generation
   questionCount?: number;

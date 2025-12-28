@@ -25,11 +25,11 @@ if [ -f server.pid ]; then
         kill $SERVER_PID
         echo -e "${GREEN}:: Server stopped (PID: $SERVER_PID)${NC}"
     else
-        echo -e "${YELLOW}Server was not running${NC}"
+        echo -e "${YELLOW}⚠️  Server was not running${NC}"
     fi
     rm server.pid
 else
-    echo -e "${YELLOW}No PID file found${NC}"
+    echo -e "${YELLOW}⚠️  No PID file found${NC}"
     
     # Try to find and kill by port
     PORT=$(grep "^PORT=" .env 2>/dev/null | cut -d '=' -f2 | tr -d '"' || echo "3001")
@@ -46,7 +46,7 @@ if docker-compose ps | grep -q "Up"; then
     docker-compose stop
     echo -e "${GREEN}:: Docker containers stopped${NC}"
 else
-    echo -e "${YELLOW}  No containers were running${NC}"
+    echo -e "${YELLOW}⚠️  No containers were running${NC}"
 fi
 
 # Step 3: Option to remove containers and volumes

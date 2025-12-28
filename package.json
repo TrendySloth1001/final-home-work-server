@@ -17,7 +17,7 @@
     "@libsql/client": "^0.15.15",
     "@prisma/adapter-libsql": "^7.1.0",
     "@prisma/adapter-pg": "^7.1.0",
-    "@prisma/client": "^7.2.0",
+    "@prisma/client": "^7.1.0",
     "@qdrant/js-client-rest": "^1.16.2",
     "@tavily/core": "^0.6.3",
     "@xenova/transformers": "^2.17.2",
@@ -25,7 +25,6 @@
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "ioredis": "^5.8.2",
-    "llamaindex": "^0.12.1",
     "pg": "^8.16.3",
     "ws": "^8.18.3"
   },
@@ -34,7 +33,7 @@
     "@types/pg": "^8.16.0",
     "@types/ws": "^8.18.1",
     "nodemon": "^3.1.11",
-    "prisma": "^7.2.0",
+    "prisma": "^7.1.0",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.9.3"

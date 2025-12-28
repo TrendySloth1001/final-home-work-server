@@ -26,7 +26,6 @@ model Syllabus {
   isArchived  Boolean   @default(false)
   archivedAt DateTime?
   resources    String?
-  otherFields  Json?    // Dynamic custom fields as JSON object
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   completionStage   Int  @default(0) // percentage of completion based on units/topics added
@@ -114,8 +113,7 @@ model Question {
   id            String   @id @default(cuid())
   topicId       String
   teacherId     String
-  batchId       String?  // Link to batch if generated in batch
-  
+
   // Question content
   questionText  String
   questionType  String   // 'mcq', 'short-answer', 'essay', 'true-false'
@@ -141,13 +139,10 @@ model Question {
 
   // Relations
   topic         Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
-  batch         QuestionBatch? @relation("QuestionBatchQuestions", fields: [batchId], references: [id], onDelete: SetNull)
-  studentAnswers  StudentAnswer[]
 
   // Indexes for better query performance
   @@index([topicId])
   @@index([teacherId])
-  @@index([batchId])
   @@index([difficulty])
   @@index([questionType])
   @@index([generatedBy])
@@ -281,217 +276,4 @@ model TopicResource {
   @@index([topicId])
   @@index([relevance])
   @@index([source])
-}
-
-
-// Assessment - Student Answer Submissions
-model StudentAnswer {
-  id                  String   @id @default(cuid())
-  questionId          String
-  studentId           String   // Who submitted
-  teacherId           String   // For filtering by teacher
-  
-  // Answer data
-  studentAnswer       String   @db.Text
-  selectedOption      String?  // For MCQ: "A", "B", "C", "D"
-  
-  // Grading results
-  score               Float    @default(0.0)
-  maxScore            Float
-  isCorrect           Boolean  @default(false)
-  correctnessLevel    String?  // excellent, good, partial, incorrect
-  
-  // Grading metadata
-  gradingMethod       String   // exact-match, semantic-multi-metric, essay-statistical
-  confidence          Float?
-  feedback            String?  @db.Text
-  
-  submittedAt         DateTime @default(now())
-  
-  // Relations
-  question            Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  
-  @@index([questionId])
-  @@index([studentId])
-  @@index([teacherId])
-  @@index([gradingMethod])
-}
-
-model Conversation {
-  id          String   @id @default(cuid())
-  userId      String?  // Optional: link to user/teacher
-  teacherId   String?  // If tied to teacher
-  studentId   String?  // If tied to student
-  
-  // Metadata
-  title       String?  // Auto-generated from first message
-  topic       String?  // Subject matter (e.g., "Math tutoring")
-  sessionType String   @default("chat") // chat | tutoring | question-gen | syllabus
-  
-  // Tool configuration
-  enabledTools Json?    // Array of enabled tool names ['syllabus-generator', 'question-generator', 'websearch']
-  toolPreferences Json? // Tool-specific preferences
-  activeEntityIds Json? // Currently active entities { syllabusId, unitId, topicId }
-  
-  // Context tracking
-  contextIds  Json?    // Array of document IDs for RAG context
-  metadata    Json?    // Additional metadata (tags, settings)
-  
-  // Timestamps
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  lastActiveAt DateTime @default(now())
-  
-  // Relations
-  messages    ConversationMessage[]
-  toolExecutions ToolExecution[]
-  
-  @@index([userId])
-  @@index([teacherId])
-  @@index([studentId])
-  @@index([lastActiveAt])
-}
-
-model ConversationMessage {
-  id             String   @id @default(cuid())
-  conversationId String
-  
-  // Message content
-  role           String   // 'system' | 'user' | 'assistant'
-  content        String   @db.Text
-  
-  // Message type classification
-  messageType    String   @default("chat") // 'chat' | 'tool_invocation' | 'tool_result'
-  toolExecutionId String? // Link to tool execution if applicable
-  
-  // RAG context used for this message
-  retrievedDocs  Json?    // Array of doc IDs/snippets used for context
-  embedding      String?  @db.Text // Vector embedding (384d)
-  
-  // Metadata
-  tokensUsed     Int?     // Track token consumption
-  model          String?  // Model used (qwen2.5:14b)
-  temperature    Float?   // Generation parameters
-  
-  // Order tracking
-  sequenceNumber Int      // Message order in conversation
-  
-  createdAt      DateTime @default(now())
-  
-  // Relations
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  toolExecution  ToolExecution? @relation(fields: [toolExecutionId], references: [id], onDelete: SetNull)
-  
-  @@index([conversationId, sequenceNumber])
-  @@index([conversationId])
-  @@index([toolExecutionId])
-}
-
-model ToolExecution {
-  id              String   @id @default(cuid())
-  conversationId  String
-  messageId       String?  // Initial message that triggered this execution
-  
-  // Tool identification
-  toolName        String   // 'syllabus-generator' | 'question-generator' | 'websearch'
-  action          String   // 'create' | 'update' | 'delete' | 'publish'
-  
-  // Intent and context
-  intent          Json?    // Parsed intent { operation, targetEntity, parameters }
-  executionContext Json?   // Snapshot of conversation state
-  inputParameters Json?    // Tool-specific input parameters
-  
-  // Execution tracking
-  status          String   @default("pending") // 'pending' | 'running' | 'completed' | 'failed'
-  progress        Int      @default(0) // 0-100 percentage
-  currentStep     String?  // Human-readable current step
-  
-  // Job tracking for async execution
-  jobId           String?  @unique
-  jobQueueName    String?  // 'aiQueue'
-  
-  // Results
-  outputResult    Json?    // Tool execution result
-  outputSummary   String?  @db.Text // Human-readable summary
-  error           String?  @db.Text
-  
-  // Entity linkage
-  entityType      String?  // 'syllabus' | 'questions' | 'unit' | 'topic'
-  entityId        String?  // ID of created/modified entity
-  versionCreated  Int?     // Version number if applicable
-  changesSummary  Json?    // { added: [], modified: [], deleted: [] }
-  
-  // Performance metrics
-  startedAt       DateTime?
-  completedAt     DateTime?
-  duration        Float?   // Duration in seconds
-  tokensUsed      Int?
-  cost            Float?   // Estimated cost in USD
-  
-  // Attribution
-  teacherId       String?
-  userId          String?
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
-  // Relations
-  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  messages        ConversationMessage[]
-  
-  @@index([conversationId])
-  @@index([toolName])
-  @@index([status])
-  @@index([jobId])
-  @@index([entityType, entityId])
-  @@index([teacherId])
-}
-
-model SyllabusVersion {
-  id                String   @id @default(cuid())
-  syllabusId        String   // Reference to the syllabus this version belongs to
-  version           Int      // Version number
-  
-  // Version metadata
-  createdBy         String   @default("ai_tool") // 'ai_tool' | 'manual'
-  toolExecutionId   String?  // Link to tool execution
-  changeDescription String?  @db.Text // Human-readable description of changes
-  changesSummary    Json?    // Detailed changes { added: [], modified: [], deleted: [] }
-  
-  // Version state snapshot
-  snapshot          Json     // Full syllabus state at this version
-  
-  // Publication tracking
-  isPublished       Boolean  @default(false)
-  publishedAt       DateTime?
-  publishedBy       String?  // teacherId who published
-  
-  createdAt         DateTime @default(now())
-  
-  @@unique([syllabusId, version])
-  @@index([syllabusId])
-  @@index([version])
-  @@index([isPublished])
-}
-
-model QuestionBatch {
-  id              String   @id @default(cuid())
-  toolExecutionId String?  @unique // Link to tool execution
-  topicId         String
-  teacherId       String
-  count           Int      // Number of questions in batch
-  
-  // Batch metadata
-  difficulty      String?  // Overall difficulty
-  questionType    String?  // MCQ, Short Answer, etc.
-  parameters      Json?    // Generation parameters
-  
-  createdAt       DateTime @default(now())
-  
-  // Relations
-  questions       Question[] @relation("QuestionBatchQuestions")
-  
-  @@index([topicId])
-  @@index([teacherId])
-  @@index([toolExecutionId])
 }
